@@ -51,6 +51,7 @@ if sel_sector != "All" and 'sector' in f.columns:
 if sel_city != "All" and 'city_clean' in f.columns:
     f = f[f['city_clean'].str.strip().str.title() == sel_city]
 
+
 # ---- KPIs
 total_usd = f['final_amount'].sum()
 num_deals = len(f)
