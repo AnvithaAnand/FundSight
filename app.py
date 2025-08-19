@@ -45,12 +45,13 @@ sel_city    = st.sidebar.selectbox("City",   city_list,   index=0)
 TOPN        = st.sidebar.slider("Top N (rank tables)", 5, 25, 10)
 
 f = df[(df['year'] >= min_y) & (df['year'] <= max_y)].copy()
+
+# ✅ FIX: Partial string matching instead of exact match
 if sel_sector != "All" and 'sector' in f.columns:
-    f = f[f['sector'].str.strip().str.title() == sel_sector]
+    f = f[f['sector'].str.contains(sel_sector, case=False, na=False)]
 
 if sel_city != "All" and 'city_clean' in f.columns:
-    f = f[f['city_clean'].str.strip().str.title() == sel_city]
-
+    f = f[f['city_clean'].str.contains(sel_city, case=False, na=False)]
 
 # ---- KPIs
 total_usd = f['final_amount'].sum()
@@ -138,7 +139,6 @@ by_year_f = (tmp.groupby('year')
 
 risk = by_year_f.merge(conc, on='year', how='left').merge(vol, on='year', how='left')
 
-# ✅ FIXED BLOCK
 risk_clean = risk.dropna(subset=['HHI', 'Volatility']).copy()
 if not risk_clean.empty:
     scaler = MinMaxScaler()
@@ -152,7 +152,6 @@ else:
 
 st.dataframe(risk.sort_values('year'), use_container_width=True)
 
-# Risk score line
 fig, ax = plt.subplots(figsize=(9, 4))
 r = risk.sort_values('year')
 ax.plot(r['year'], r['RiskScore'], marker='o')
@@ -162,5 +161,4 @@ ax.set_ylabel('Risk Score')
 ax.grid(True)
 st.pyplot(fig)
 
-# Download filtered data
 st.download_button("Download filtered dataset (CSV)", f.to_csv(index=False), "FundSight_filtered.csv", "text/csv")
