@@ -46,7 +46,8 @@ TOPN        = st.sidebar.slider("Top N (rank tables)", 5, 25, 10)
 
 f = df[(df['year'] >= min_y) & (df['year'] <= max_y)].copy()
 if sel_sector != "All" and 'sector' in f.columns:
-    f = f[f['sector'] == sel_sector]
+    f = f[f['sector'].str.strip().str.title() == sel_sector]
+
 if sel_city != "All" and 'city_clean' in f.columns:
     f = f[f['city_clean'] == sel_city]
 
