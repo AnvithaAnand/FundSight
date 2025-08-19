@@ -37,21 +37,20 @@ df = load_data()
 # ---- Sidebar filters
 years = sorted(df['year'].unique().tolist())
 min_y, max_y = st.sidebar.select_slider("Year range", options=years, value=(min(years), max(years)))
-sector_list = ["All"] + sorted([s for s in df['sector'].dropna().unique() if s]) if 'sector' in df.columns else ["All"]
-city_list   = ["All"] + sorted([c for c in df['city_clean'].dropna().unique() if c]) if 'city_clean' in df.columns else ["All"]
+sector_list = ["All"] + sorted([s for s in df['sector'].unique() if s]) if 'sector' in df.columns else ["All"]
+city_list   = ["All"] + sorted([c for c in df['city_clean'].unique() if c]) if 'city_clean' in df.columns else ["All"]
 
 sel_sector  = st.sidebar.selectbox("Sector", sector_list, index=0)
 sel_city    = st.sidebar.selectbox("City",   city_list,   index=0)
 TOPN        = st.sidebar.slider("Top N (rank tables)", 5, 25, 10)
 
-# ---- Filtering
 f = df[(df['year'] >= min_y) & (df['year'] <= max_y)].copy()
 
+# ✅ Robust filtering
 if sel_sector != "All":
-    f = f[f['sector'].str.title().str.strip() == sel_sector.strip()]
-
+    f = f[f['sector'].fillna('').str.casefold() == sel_sector.casefold()]
 if sel_city != "All":
-    f = f[f['city_clean'].str.title().str.strip() == sel_city.strip()]
+    f = f[f['city_clean'].fillna('').str.casefold() == sel_city.casefold()]
 
 # ---- KPIs
 total_usd = f['final_amount'].sum()
@@ -89,6 +88,8 @@ with c1:
         top_cities = (f.groupby('city_clean', as_index=False)['final_amount']
                         .sum().sort_values('final_amount', ascending=False).head(TOPN))
         st.dataframe(top_cities.rename(columns={'city_clean': 'City', 'final_amount': 'Funding (USD)'}), use_container_width=True)
+    else:
+        st.info("City column not available in this dataset.")
 
 with c2:
     st.markdown("**Top Sectors**")
@@ -96,15 +97,20 @@ with c2:
         top_sectors = (f.groupby('sector', as_index=False)['final_amount']
                          .sum().sort_values('final_amount', ascending=False).head(TOPN))
         st.dataframe(top_sectors.rename(columns={'sector': 'Sector', 'final_amount': 'Funding (USD)'}), use_container_width=True)
+    else:
+        st.info("Sector column not available in this dataset.")
 
     st.markdown("**Top Investors**")
-    if 'investors_clean' in f.columns and not f[['investors_clean']].dropna().empty:
+    inv_cols_present = all(col in f.columns for col in ['investors_clean', 'final_amount'])
+    if inv_cols_present and not f[['investors_clean']].dropna().empty:
         inv = f[['investors_clean', 'final_amount']].dropna()
         inv = inv.assign(investor=inv['investors_clean'].str.split(',')).explode('investor')
         inv['investor'] = inv['investor'].str.strip().str.title()
         top_investors = (inv.groupby('investor', as_index=False)['final_amount']
                            .sum().sort_values('final_amount', ascending=False).head(TOPN))
         st.dataframe(top_investors.rename(columns={'investor': 'Investor', 'final_amount': 'Funding (USD)'}), use_container_width=True)
+    else:
+        st.info("No investor data in current filter.")
 
 # ---- Risk heuristics
 st.subheader("Risk Heuristics (HHI concentration & monthly volatility)")
@@ -132,7 +138,7 @@ by_year_f = (tmp.groupby('year')
 
 risk = by_year_f.merge(conc, on='year', how='left').merge(vol, on='year', how='left')
 
-# Normalize and compute risk score
+# ✅ FIXED BLOCK
 risk_clean = risk.dropna(subset=['HHI', 'Volatility']).copy()
 if not risk_clean.empty:
     scaler = MinMaxScaler()
@@ -146,6 +152,7 @@ else:
 
 st.dataframe(risk.sort_values('year'), use_container_width=True)
 
+# Risk score line
 fig, ax = plt.subplots(figsize=(9, 4))
 r = risk.sort_values('year')
 ax.plot(r['year'], r['RiskScore'], marker='o')
@@ -155,5 +162,5 @@ ax.set_ylabel('Risk Score')
 ax.grid(True)
 st.pyplot(fig)
 
-# ---- Download
+# Download filtered data
 st.download_button("Download filtered dataset (CSV)", f.to_csv(index=False), "FundSight_filtered.csv", "text/csv")
